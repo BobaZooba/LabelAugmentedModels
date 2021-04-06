@@ -14,6 +14,13 @@ def compute_n_parameters(module: nn.Module):
     return sum((p.numel() for p in module.parameters()))
 
 
+def extra_cuda(module, device):
+    for children_module in module.children():
+        if hasattr(children_module, 'extra_cuda'):
+            children_module.extra_cuda(device)
+        extra_cuda(children_module, device)
+
+
 def embedding_masking(x: Tensor,
                       pad_mask: Tensor,
                       value: float = 0.) -> Tensor:
@@ -1332,15 +1339,23 @@ class BootstrapLabelMemoryStorage(nn.Module):
         self.memory_indices = torch.cat([torch.arange(self.memory_size_per_label[n])
                                          for n in range(self.num_labels)])
 
+    @property
+    def _to_cuda_attributes(self):
+        attributes = [
+            'memory',
+            'memory_norms',
+            'memory_mask',
+            'memory_collected_flag',
+            'memory_n_no_updates',
+            'memory_n_updates',
+            'memory_indices'
+        ]
+        return attributes
+
     def extra_cuda(self, device: Optional[Union[int, torch.device]] = None):
 
-        self.memory = self.memory.to(device)
-        self.memory_norms = self.memory_norms.to(device)
-        self.memory_mask = self.memory_mask.to(device)
-        self.memory_collected_flag = self.memory_collected_flag.to(device)
-        self.memory_n_no_updates = self.memory_n_no_updates.to(device)
-        self.memory_n_updates = self.memory_n_updates.to(device)
-        self.memory_indices = self.memory_indices.to(device)
+        for attribute_name in self._to_cuda_attributes:
+            setattr(self, attribute_name, getattr(self, attribute_name).to(device))
 
     def _set_memory_size_per_label(self, memory_size_per_label: Union[int, List[int]]):
 
