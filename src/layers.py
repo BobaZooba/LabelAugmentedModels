@@ -14,11 +14,18 @@ def compute_n_parameters(module: nn.Module):
     return sum((p.numel() for p in module.parameters()))
 
 
-def extra_cuda(module, device):
+def extra_cuda(module: nn.Module, device: torch.device):
     for children_module in module.children():
         if hasattr(children_module, 'extra_cuda'):
             children_module.extra_cuda(device)
         extra_cuda(children_module, device)
+
+
+def update_memory(module: nn.Module, mode: bool = True):
+    for children_module in module.children():
+        if hasattr(children_module, 'update'):
+            children_module.update(mode)
+        update_memory(children_module, mode)
 
 
 def embedding_masking(x: Tensor,
@@ -1696,7 +1703,7 @@ class TransformerEncoderLayer(nn.Module):
     def forward(self,
                 x: Tensor,
                 pad_mask: Optional[Tensor] = None,
-                attention_mask: Optional[Tensor] = None) -> Tensor:
+                attention_mask: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
         """
         :param x: [batch_size, sequence_length, model_dim]
         :param pad_mask: [batch_size, sequence_length]
@@ -1706,9 +1713,9 @@ class TransformerEncoderLayer(nn.Module):
 
         hidden = self.norm_attention(x)
 
-        hidden = self.self_attention(x=hidden,
-                                     pad_mask=pad_mask,
-                                     attention_mask=attention_mask)[0]
+        attention_scores, hidden = self.self_attention(x=hidden,
+                                                       pad_mask=pad_mask,
+                                                       attention_mask=attention_mask)
 
         hidden = self.dropout_attention(hidden)
 
@@ -1723,7 +1730,7 @@ class TransformerEncoderLayer(nn.Module):
 
         x = x + self.dropout_feed_forward(hidden)
 
-        return x
+        return attention_scores, x
 
 
 class MemoryAugmentedTransformerEncoderLayer(nn.Module):

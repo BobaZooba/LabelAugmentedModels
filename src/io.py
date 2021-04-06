@@ -234,7 +234,7 @@ class ModelOutput(Sample):
 
     encoded: List[torch.Tensor] = field(default_factory=list)
     embeddings: Optional[torch.Tensor] = None
-    is_normalized: bool = False
+    embeddings_is_normalized: bool = False
 
 
 @dataclass
@@ -289,16 +289,16 @@ class ModelIO(Sample):
         return torch.softmax(self.logits, dim=dim)
 
     def get_normalized_embeddings(self) -> Optional[torch.Tensor]:
-        if self.output.is_normalized:
+        if self.output.embeddings_is_normalized:
             return self.output.embeddings
         elif isinstance(self.output.embeddings, torch.Tensor):
             return F.normalize(self.output.embeddings)
 
     def normalize_embeddings(self):
-        if not self.output.is_normalized:
+        if not self.output.embeddings_is_normalized:
             self.output.embeddings = self.get_normalized_embeddings()
             if self.output.embeddings is not None:
-                self.output.is_normalized = True
+                self.output.embeddings_is_normalized = True
 
     @property
     def similarity_matrix(self) -> torch.Tensor:
