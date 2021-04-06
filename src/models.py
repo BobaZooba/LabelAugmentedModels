@@ -115,7 +115,7 @@ class PreTrainedBert(nn.Module):
 
         output = self.model(input_ids=sample.input.sequence_indices, attention_mask=sample.input.pad_mask)
 
-        sample.output.encoded.append(output)
+        sample.output.encoded.append(output.last_hidden_state)
 
         return sample
 
