@@ -1307,21 +1307,30 @@ class BootstrapLabelMemoryStorage(nn.Module):
 
         self.bounds = self._set_bounds()
 
-        self.memory = nn.Parameter(torch.zeros(sum(self.memory_size_per_label), self.model_dim),
-                                   requires_grad=False)
-        self.memory_norms = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)), requires_grad=False)
-        self.memory_mask = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)).bool(),
-                                        requires_grad=False)
-        self.memory_collected_flag = nn.Parameter(torch.zeros(self.num_labels).bool(), requires_grad=False)
-        self.memory_n_no_updates = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)),
-                                                requires_grad=False)
-        self.memory_n_updates = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)),
-                                             requires_grad=False)
-        self.memory_indices = nn.Parameter(torch.cat(
-            [torch.arange(self.memory_size_per_label[n])
-             for n in range(self.num_labels)]),
-            requires_grad=False
-        )
+        # self.memory = nn.Parameter(torch.zeros(sum(self.memory_size_per_label), self.model_dim),
+        #                            requires_grad=False)
+        # self.memory_norms = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)), requires_grad=False)
+        # self.memory_mask = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)).bool(),
+        #                                 requires_grad=False)
+        # self.memory_collected_flag = nn.Parameter(torch.zeros(self.num_labels).bool(), requires_grad=False)
+        # self.memory_n_no_updates = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)),
+        #                                         requires_grad=False)
+        # self.memory_n_updates = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)),
+        #                                      requires_grad=False)
+        # self.memory_indices = nn.Parameter(torch.cat(
+        #     [torch.arange(self.memory_size_per_label[n])
+        #      for n in range(self.num_labels)]),
+        #     requires_grad=False
+        # )
+
+        self.memory = torch.zeros(sum(self.memory_size_per_label), self.model_dim)
+        self.memory_norms = torch.zeros(sum(self.memory_size_per_label))
+        self.memory_mask = torch.zeros(sum(self.memory_size_per_label)).bool()
+        self.memory_collected_flag = torch.zeros(self.num_labels).bool()
+        self.memory_n_no_updates = torch.zeros(sum(self.memory_size_per_label))
+        self.memory_n_updates = torch.zeros(sum(self.memory_size_per_label))
+        self.memory_indices = torch.cat([torch.arange(self.memory_size_per_label[n])
+                                         for n in range(self.num_labels)])
 
     def _set_memory_size_per_label(self, memory_size_per_label: Union[int, List[int]]):
 
