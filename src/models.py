@@ -131,6 +131,26 @@ class BaseMemoryAugmentedBackbone(ABC, nn.Module):
         self.embedding_layer: nn.Module = ...
         self.layers: nn.ModuleList = ...
 
+    def cuda(self, device: Optional[Union[int, torch.device]] = None):
+        r"""Moves all model parameters and buffers to the GPU.
+
+        This also makes associated parameters and buffers different objects. So
+        it should be called before constructing optimizer if the module will
+        live on GPU while being optimized.
+
+        Args:
+            device (int, optional): if specified, all parameters will be
+                copied to that device
+
+        Returns:
+            Module: self
+        """
+        for layer in self.layers:
+            if hasattr(layer, 'extra_cuda'):
+                layer.extra_cuda(device)
+
+        return self._apply(lambda t: t.cuda(device))
+
     def _apply_shared(self):
 
         first_ma_layer = None

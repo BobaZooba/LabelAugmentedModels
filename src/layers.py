@@ -6,11 +6,8 @@ from typing import Optional, Tuple, Union, List, Sequence, TypeVar
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import nn, Tensor, device
+from torch import nn, Tensor
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-
-
-T = TypeVar('T', bound='Module')
 
 
 def compute_n_parameters(module: nn.Module):
@@ -1335,20 +1332,7 @@ class BootstrapLabelMemoryStorage(nn.Module):
         self.memory_indices = torch.cat([torch.arange(self.memory_size_per_label[n])
                                          for n in range(self.num_labels)])
 
-    def cuda(self: T, device: Optional[Union[int, device]] = None) -> T:
-        r"""Moves all model parameters and buffers to the GPU.
-
-        This also makes associated parameters and buffers different objects. So
-        it should be called before constructing optimizer if the module will
-        live on GPU while being optimized.
-
-        Args:
-            device (int, optional): if specified, all parameters will be
-                copied to that device
-
-        Returns:
-            Module: self
-        """
+    def extra_cuda(self, device: Optional[Union[int, torch.device]] = None):
 
         self.memory = self.memory.to(device)
         self.memory_norms = self.memory_norms.to(device)
@@ -1357,8 +1341,6 @@ class BootstrapLabelMemoryStorage(nn.Module):
         self.memory_n_no_updates = self.memory_n_no_updates.to(device)
         self.memory_n_updates = self.memory_n_updates.to(device)
         self.memory_indices = self.memory_indices.to(device)
-
-        return self._apply(lambda t: t.cuda(device))
 
     def _set_memory_size_per_label(self, memory_size_per_label: Union[int, List[int]]):
 
