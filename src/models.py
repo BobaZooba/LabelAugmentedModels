@@ -117,7 +117,7 @@ class PreTrainedBert(nn.Module):
 
         sample.output.encoded.append(output)
 
-        return output
+        return sample
 
 
 class BaseMemoryAugmentedBackbone(ABC, nn.Module):
