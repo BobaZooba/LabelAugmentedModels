@@ -146,8 +146,8 @@ class BaseMemoryAugmentedBackbone(ABC, nn.Module):
             Module: self
         """
         for layer in self.layers:
-            if hasattr(layer, 'storage'):
-                layer.storage.extra_cuda(device)
+            if hasattr(layer, 'memory_attention'):
+                layer.memory_attention.storage.extra_cuda(device)
 
         return self._apply(lambda t: t.cuda(device))
 
