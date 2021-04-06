@@ -1601,7 +1601,8 @@ class MultiHeadMemoryAttention(BaseAttention):
 
         if self.updating and labels is not None:
             embeddings = self.encoder(self.pooling(x, pad_mask))
-            self.storage.update_memory(embeddings, labels)
+            with torch.no_grad():
+                self.storage.update_memory(embeddings, labels)
         elif not self.updating and self.need_embeddings:
             embeddings = self.encoder(self.pooling(x, pad_mask))
         else:
