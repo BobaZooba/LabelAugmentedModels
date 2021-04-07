@@ -8,12 +8,21 @@ from torch import nn, Tensor
 Batch = Dict[str, Tensor]
 
 
-def batch_to_cpu(batch: Batch, except_list: Optional[List[str]] = None) -> Batch:
+def batch_to_device(batch: Batch,
+                    device: Optional[torch.device] = None,
+                    except_list: Optional[List[str]] = None) -> Batch:
+
+    if device is None:
+        device = torch.device('cpu')
+
     if except_list is None:
         except_list = list()
+
     for key, value in batch.items():
         if key not in except_list:
-            batch[key] = value.cpu()
+            if hasattr(value, 'to'):
+                batch[key] = value.to(device)
+
     return batch
 
 
