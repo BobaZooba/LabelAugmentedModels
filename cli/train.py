@@ -53,7 +53,7 @@ def main(config: DictConfig):
         dirpath=os.path.join(os.getcwd(), config.general.checkpoint_path),
         save_last=True,
         verbose=True,
-        monitor='val_loss',
+        monitor='valid_epoch_loss',
         mode='min'
     )
 
