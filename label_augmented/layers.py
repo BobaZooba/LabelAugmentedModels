@@ -766,10 +766,12 @@ class RelativeAttentionPositions(nn.Module):
 
     def forward(self,
                 tensor: Tensor,
-                is_key: bool = True) -> Tensor:
+                is_key: bool = True,
+                transpose: bool = False) -> Tensor:
         """
         :param tensor: [batch_size, num_heads, sequence_length, head_dim or sequence_length]
         :param is_key: use key positions
+        :param transpose:
         :return:
         """
 
@@ -778,7 +780,7 @@ class RelativeAttentionPositions(nn.Module):
         relative_position_embeddings = self._generate_relative_positions_embeddings(length=sequence_length,
                                                                                     is_key=is_key)
 
-        if sequence_length != fourth_dim:
+        if transpose:
             relative_position_embeddings = relative_position_embeddings.transpose(-1, -2)
 
         tensor = tensor.permute(2, 0, 1, 3)
@@ -915,7 +917,7 @@ class MultiHeadSelfAttention(BaseAttention):
         if self.relative_positions is not None:
             query = query.transpose(0, 1).view(sequence_length, batch_size, self.num_heads, self.head_dim)
             query = query.permute(1, 2, 0, 3)
-            relative_attention_scores_keys = self.relative_positions(query, is_key=True)
+            relative_attention_scores_keys = self.relative_positions(query, is_key=True, transpose=True)
             attention_scores += relative_attention_scores_keys
 
         # fp16 compatibility
@@ -964,7 +966,8 @@ class MultiHeadSelfAttention(BaseAttention):
         if self.relative_positions is not None:
             attention_scores = self._split_heads(attention_scores, batch_size, sequence_length)
             relative_attention_scores_values = self.relative_positions(attention_scores,
-                                                                       is_key=False)
+                                                                       is_key=False,
+                                                                       transpose=False)
             attention_output = attention_output.view(batch_size, self.num_heads,
                                                      sequence_length, self.head_dim)
             attention_output += relative_attention_scores_values
