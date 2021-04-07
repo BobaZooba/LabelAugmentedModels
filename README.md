@@ -3,4 +3,5 @@
 # TODO
 - loss with embeddings regularization
 - save memory like state_dict
-- support multi-gpu
+- add multi-gpu support
+- add 16 bit precision support

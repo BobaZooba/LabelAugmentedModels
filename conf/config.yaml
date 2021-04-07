@@ -27,7 +27,7 @@ general:
 train:
   max_epochs: 10
   accumulate_grad_batches: 1
-  precision: 16
+  precision: 32
   gradient_clip_val: 3.0
   gpus:
     - ${general.n_gpu}
