@@ -1,10 +1,9 @@
 import random
-import numpy as np
+from typing import Union, List
 
+import numpy as np
 import torch
 from torch import nn
-from typing import Optional, Union, List
-from transformers import DistilBertTokenizer, DistilBertModel
 
 
 def get_label_candidates(embeddings, labels, num_labels, label_samples_ratio=0.7, min_samples=3):

@@ -1,0 +1,3 @@
+# @package _group_
+class_path: label_augmented.losses.CrossEntropyLoss
+parameters:

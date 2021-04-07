@@ -1,0 +1,11 @@
+# @package _group_
+class_path: label_augmented.models.AttentionAggregation
+parameters:
+  model_dim: ${general.model_dim}
+  num_heads: 3
+  inner_dim: 256
+  dropout: 0.1
+  pooling_type: ${pooling.pooling_type}
+  length_scaling: ${pooling.length_scaling}
+  scaling_square_root: ${pooling.scaling_square_root}
+  pad_index: ${general.pad_index}

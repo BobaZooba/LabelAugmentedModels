@@ -1,0 +1,51 @@
+defaults:
+  - datamodule: yahoo_answers
+  - backbone: ma_bert
+  - aggregation: residual_attention
+  - head: multi_layer_perceptron
+  - optimizer: adamw
+  - loss: cross_entropy
+  - hydra/hydra_logging: colorlog
+  - hydra/job_logging: colorlog
+
+general:
+  project_name: LabelAugmented
+  # current dir is ./outputs/
+  data_path: ../../data/
+  seed: 42
+  n_gpu: 0
+  num_classes: 10
+  model_dim: 768
+  num_layers: 6
+  pretrained_model_name: distilbert-base-uncased
+  pad_index: 0
+  checkpoint_path: ${general.data_path}checkpoints/
+  f1_type: macro
+  vocab_size: 30522
+  max_length: 32
+
+train:
+  max_epochs: 10
+  accumulate_grad_batches: 1
+  precision: 32
+  gradient_clip_val: 3.0
+#  gpus:
+#    - ${general.n_gpu}
+  num_sanity_val_steps: 0
+  limit_train_batches: 1.
+  limit_val_batches: 1.
+  val_check_interval: 0.5
+  log_every_n_steps: 10
+
+pooling:
+  pooling_type: mean
+  length_scaling: True
+  scaling_square_root: True
+  pad_index: ${general.pad_index}
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}

@@ -1,9 +1,10 @@
+from abc import ABC
 from collections import OrderedDict
+from dataclasses import dataclass, fields, field
+from typing import Any, Dict, Optional, Tuple
+
 import torch
 from torch.nn import functional as F
-from dataclasses import dataclass, fields, field
-from typing import Any, BinaryIO, Dict, Optional, Tuple, Union, Type, List
-from abc import ABC
 
 
 class Container(OrderedDict):
@@ -230,9 +231,17 @@ class ModelInput(Sample):
 
 
 @dataclass
+class Encodings(Sample):
+
+    backbone: Optional[torch.Tensor] = None
+    aggregation: Optional[torch.Tensor] = None
+    head: Optional[torch.Tensor] = None
+
+
+@dataclass
 class ModelOutput(Sample):
 
-    encoded: List[torch.Tensor] = field(default_factory=list)
+    encodings: Encodings = field(default_factory=Encodings)
     embeddings: Optional[torch.Tensor] = None
     embeddings_is_normalized: bool = False
 
@@ -261,10 +270,10 @@ class LossOutput(Sample):
 @dataclass
 class ModelIO(Sample):
 
-    input: Optional[ModelInput] = field(default_factory=ModelInput)
-    output: Optional[ModelOutput] = field(default_factory=ModelOutput)
+    input: ModelInput = field(default_factory=ModelInput)
+    output: ModelOutput = field(default_factory=ModelOutput)
     target: Optional[torch.Tensor] = None
-    loss: Optional[LossOutput] = field(default_factory=LossOutput)
+    loss: LossOutput = field(default_factory=LossOutput)
 
     def set_pad_mask(self, pad_index: int = 0):
         self.input.set_pad_mask(pad_index=pad_index)
@@ -282,11 +291,22 @@ class ModelIO(Sample):
 
     @property
     def logits(self):
-        return self.output.encoded[-1]
+        return self.output.encodings.head
 
     @property
-    def prediction(self, dim=-1):
-        return torch.softmax(self.logits, dim=dim)
+    def probability(self):
+        if self.logits is not None:
+            return torch.softmax(self.logits, dim=-1)
+        else:
+            raise AttributeError('head encodings is None')
+
+    @property
+    def prediction(self):
+        return self.logits.argmax(dim=-1).detach().cpu().tolist()
+
+    @property
+    def raw_target(self):
+        return self.target.detach().cpu().tolist()
 
     def get_normalized_embeddings(self) -> Optional[torch.Tensor]:
         if self.output.embeddings_is_normalized:

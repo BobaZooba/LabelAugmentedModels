@@ -1,0 +1,7 @@
+# @package _group_
+class_path: label_augmented.data.YahooAnswersDataModule
+parameters:
+  data_path: ${general.data_path}
+  batch_size: 128
+  pretrained_model_name: ${general.pretrained_model_name}
+  max_length: $(general.max_length)

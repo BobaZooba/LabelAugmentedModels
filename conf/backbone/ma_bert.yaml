@@ -1,0 +1,38 @@
+# @package _group_
+class_path: label_augmented.models.MemoryAugmentedBert
+parameters:
+  num_labels: ${general.num_classes}
+  num_heads: 12
+  feed_forward_dim: 1536
+  num_layers: ${general.num_layers}
+  encoder_sizes:
+    - ${general.model_dim}
+    - ${general.model_dim}
+    - ${general.model_dim}
+    - ${general.model_dim}
+  pretrained_model_name: ${general.pretrained_model_name}
+  memory_layer_each_n: 3
+  shared_memory: False
+  shared_encoder: False
+  bootstrap_storage: True
+  dropout: 0.1
+  norm_type: rms
+  head_dim: null
+  activation: geglu
+  encoder_dropout: 0.15
+  encoder_activation: gelu
+  encoder_norm_type: bn
+  pooling_type: ${pooling.pooling_type}
+  length_scaling: ${pooling.length_scaling}
+  scaling_square_root: ${pooling.scaling_square_root}
+  use_attention_bias: False
+  momentum: 0.5
+  scaled_momentum: True
+  min_samples_per_label: 3
+  enough_samples_per_label: 32
+  memory_size_per_label: 64
+  label_samples_ratio: 0.7
+  max_candidates: 16
+  max_no_updates: 64
+  use_fusion_gate: False
+  pad_index: ${general.pad_index}

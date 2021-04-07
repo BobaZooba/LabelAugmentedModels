@@ -1,13 +1,13 @@
-from typing import Optional, Tuple, Union, List, Sequence
+import copy
+import math
+from abc import ABC
+from typing import Optional, Union, List, Sequence
 
 import torch
 from torch import nn
-from abc import ABC
-
-import copy
-import math
 from transformers import AutoModel
-from src import io, layers
+
+from label_augmented import io, layers
 
 ENCODER_TYPES: List[str] = [
     'encoder',
@@ -15,7 +15,7 @@ ENCODER_TYPES: List[str] = [
 ]
 
 
-class TransformerEncoder(nn.Module):
+class Transformer(nn.Module):
 
     def __init__(self,
                  model_dim: int,
@@ -83,16 +83,16 @@ class TransformerEncoder(nn.Module):
         for layer in self.layers:
             x = layer(x, pad_mask=sample.input.pad_mask)[-1]
 
-        sample.output.encoded.append(x)
+        sample.output.encodings.backbone = x
 
         return sample
 
 
-class PreTrainedBert(nn.Module):
+class Bert(nn.Module):
 
-    def __init__(self, model_name: str = 'distilbert-base-uncased', num_layers: int = -1):
+    def __init__(self, pretrained_model_name: str = 'distilbert-base-uncased', num_layers: int = -1):
         super().__init__()
-        self.model = AutoModel.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(pretrained_model_name)
         self.pad_index = self.model.config.pad_token_id
         self.num_layers = num_layers
 
@@ -103,9 +103,13 @@ class PreTrainedBert(nn.Module):
 
         for encoder_type in ENCODER_TYPES:
             if hasattr(self.model, encoder_type):
-                encoder_layers = getattr(self.model, encoder_type).layer[:self.num_layers]
-                setattr(self.model, encoder_type, encoder_layers)
-                break
+                encoder_layers = getattr(self.model, encoder_type).layer
+                if len(encoder_layers) > self.num_layers:
+                    encoder_layers = encoder_layers[:self.num_layers]
+                    setattr(self.model, encoder_type, encoder_layers)
+                elif len(encoder_layers) < self.num_layers:
+                    raise ValueError('Expected num_layers more than pretrained model num layers')
+                return
 
         raise ValueError('Not specified encoder_type of model')
 
@@ -115,7 +119,7 @@ class PreTrainedBert(nn.Module):
 
         output = self.model(input_ids=sample.input.sequence_indices, attention_mask=sample.input.pad_mask)
 
-        sample.output.encoded.append(output.last_hidden_state)
+        sample.output.encodings.backbone = output.last_hidden_state
 
         return sample
 
@@ -175,13 +179,13 @@ class BaseMemoryAugmentedBackbone(ABC, nn.Module):
         if all_embeddings[0] is not None:
             all_embeddings = torch.stack(all_embeddings)
 
-        sample.output.encoded.append(x)
+        sample.output.encodings.backbone = x
         sample.output.embeddings = all_embeddings
 
         return sample
 
 
-class MemoryAugmentedTransformerEncoder(BaseMemoryAugmentedBackbone):
+class MemoryAugmentedTransformer(BaseMemoryAugmentedBackbone):
 
     def __init__(self,
                  model_dim: int,
@@ -313,7 +317,7 @@ class MemoryAugmentedTransformerEncoder(BaseMemoryAugmentedBackbone):
         self._apply_shared()
 
 
-class MemoryAugmentedPreTrainedBert(BaseMemoryAugmentedBackbone):
+class MemoryAugmentedBert(BaseMemoryAugmentedBackbone):
 
     def __init__(self,
                  num_labels: int,
@@ -321,8 +325,7 @@ class MemoryAugmentedPreTrainedBert(BaseMemoryAugmentedBackbone):
                  feed_forward_dim: int,
                  num_layers: int,
                  encoder_sizes: Sequence[int],
-                 model_name: str = 'distilbert-base-uncased',
-                 pre_trained_num_layers: int = -1,
+                 pretrained_model_name: str = 'distilbert-base-uncased',
                  memory_layer_each_n: int = 3,
                  shared_memory: bool = False,
                  shared_encoder: bool = False,
@@ -350,14 +353,14 @@ class MemoryAugmentedPreTrainedBert(BaseMemoryAugmentedBackbone):
                  pad_index: int = 0):
         super().__init__()
 
-        self.model_name = model_name
-        self.pre_trained_num_layers = pre_trained_num_layers
+        self.num_layers = num_layers
+        self.pretrained_model_name = pretrained_model_name
         self.memory_layer_each_n = memory_layer_each_n
         self.shared_memory = shared_memory
         self.shared_encoder = shared_encoder
         self.pad_index = pad_index
 
-        model = AutoModel.from_pretrained(self.model_name)
+        model = AutoModel.from_pretrained(self.pretrained_model_name)
         self.model_dim = copy.deepcopy(model.config.hidden_size)
 
         encoder_sizes = list(encoder_sizes)
@@ -434,12 +437,16 @@ class MemoryAugmentedPreTrainedBert(BaseMemoryAugmentedBackbone):
             if hasattr(model, encoder_type):
 
                 encoder_layers = copy.deepcopy(getattr(model, encoder_type).layer)
-                if self.pre_trained_num_layers > 0:
+
+                if self.num_layers > 0:
                     num_encoder_layers = math.ceil(
-                        self.pre_trained_num_layers - self.pre_trained_num_layers / self.memory_layer_each_n
+                        self.num_layers - self.num_layers / self.memory_layer_each_n
                     )
                 else:
                     num_encoder_layers = len(encoder_layers)
+
+                if num_encoder_layers > len(encoder_layers):
+                    raise ValueError('Num pretrained layers is not enough for that setup')
 
                 encoder_layers = encoder_layers[:num_encoder_layers]
 
@@ -465,9 +472,8 @@ class GlobalPooling(nn.Module):
 
     def forward(self, sample: io.ModelIO) -> io.ModelIO:
 
-        mean_pooled = self.pooling(sample.logits, sample.input.pad_mask)
-
-        sample.output.encoded.append(mean_pooled)
+        sample.output.encodings.aggregation = self.pooling(sample.output.encodings.backbone,
+                                                           sample.input.pad_mask)
 
         return sample
 
@@ -498,12 +504,10 @@ class AttentionAggregation(nn.Module):
 
     def forward(self, sample: io.ModelIO) -> io.ModelIO:
 
-        mean_pooled = self.pooling(sample.logits, sample.input.pad_mask)
-        attention_pooled = self.attention_pooling(sample.logits, sample.input.pad_mask).squeeze(dim=1)
+        mean_pooled = self.pooling(sample.output.encodings.backbone, sample.input.pad_mask)
+        attention_pooled = self.attention_pooling(sample.output.encodings.backbone, sample.input.pad_mask).squeeze(dim=1)
 
-        x = torch.cat((mean_pooled, attention_pooled), dim=-1)
-
-        sample.output.encoded.append(x)
+        sample.output.encodings.aggregation = torch.cat((mean_pooled, attention_pooled), dim=-1)
 
         return sample
 
@@ -537,45 +541,46 @@ class ResidualAttentionAggregation(nn.Module):
 
         self.dropout = nn.Dropout(p=dropout)
 
-        self.output_projection = nn.Linear(in_features=self.attention_pooling.output_dim,
-                                           out_features=model_dim)
+        if self.attention_pooling.output_dim == model_dim:
+            self.output_projection = nn.Identity()
+        else:
+            self.output_projection = nn.Linear(in_features=self.attention_pooling.output_dim,
+                                               out_features=model_dim)
 
     def forward(self, sample: io.ModelIO) -> io.ModelIO:
 
-        mean_pooled = self.pooling(sample.logits, sample.input.pad_mask)
+        mean_pooled = self.pooling(sample.output.encodings.backbone, sample.input.pad_mask)
 
-        attention_pooled = self.attention_pooling(self.normalization_layer(sample.logits),
+        attention_pooled = self.attention_pooling(self.normalization_layer(sample.output.encodings.backbone),
                                                   sample.input.pad_mask)
 
         attention_pooled = self.output_projection(attention_pooled.squeeze(dim=1))
 
-        attention_pooled = self.dropout(attention_pooled) + mean_pooled
-
-        sample.output.encoded.append(attention_pooled)
+        sample.output.encodings.aggregation = self.dropout(attention_pooled) + mean_pooled
 
         return sample
 
 
-class Head(nn.Module):
+class MultiLayerPerceptron(nn.Module):
 
     def __init__(self,
                  sizes: Sequence[int],
                  norm_type: Optional[str] = 'bn',
-                 dropout: float = 0.1,
+                 dropout: float = 0.15,
                  activation: Optional[str] = 'gelu',
                  residual_as_possible: bool = True):
         super().__init__()
 
-        self.encoder = layers.MLP(sizes=sizes,
-                                  norm_type=norm_type,
-                                  dropout=dropout,
-                                  activation=activation,
-                                  residual_as_possible=residual_as_possible)
+        self.encoder = layers.MultiLayerPerceptron(
+            sizes=sizes,
+            norm_type=norm_type,
+            dropout=dropout,
+            activation=activation,
+            residual_as_possible=residual_as_possible
+        )
 
     def forward(self, sample: io.ModelIO) -> io.ModelIO:
 
-        x = self.encoder(sample.logits)
-
-        sample.output.encoded.append(x)
+        sample.output.encodings.head = self.encoder(sample.output.encodings.aggregation)
 
         return sample

@@ -1,0 +1,12 @@
+# @package _group_
+class_path: label_augmented.models.MultiLayerPerceptron
+parameters:
+  sizes:
+    - ${general.model_dim}
+    - ${general.model_dim}
+    - ${general.model_dim}
+    - ${general.num_classes}
+  norm_type: bn
+  dropout: 0.15
+  activation: gelu
+  residual_as_possible: True

@@ -1,0 +1,5 @@
+# @package _group_
+class_path: label_augmented.models.Bert
+parameters:
+  pretrained_model_name: ${general.pretrained_model_name}
+  num_layers: ${general.num_layers}

@@ -1,7 +1,7 @@
 import math
 import random
 from abc import ABC
-from typing import Optional, Tuple, Union, List, Sequence, TypeVar
+from typing import Optional, Tuple, Union, List, Sequence
 
 import numpy as np
 import torch
@@ -355,16 +355,16 @@ class Linear(nn.Module):
         return f'(residual={self.residual})'
 
 
-class MLP(nn.Module):
+class MultiLayerPerceptron(nn.Module):
 
     def __init__(self,
                  sizes: Sequence[int],
                  norm_type: Optional[str] = 'bn',
-                 dropout: float = 0.1,
+                 dropout: float = 0.15,
                  activation: Optional[str] = 'relu',
                  residual_as_possible: bool = True,
                  last_layer_activation: Optional[nn.Module] = None,
-                 last_layer_dropout: Optional[float] = 0,
+                 last_layer_dropout: Optional[float] = None,
                  last_layer_residual: bool = False):
         super().__init__()
 
@@ -1321,22 +1321,6 @@ class BootstrapLabelMemoryStorage(nn.Module):
 
         self.bounds = self._set_bounds()
 
-        # self.memory = nn.Parameter(torch.zeros(sum(self.memory_size_per_label), self.model_dim),
-        #                            requires_grad=False)
-        # self.memory_norms = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)), requires_grad=False)
-        # self.memory_mask = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)).bool(),
-        #                                 requires_grad=False)
-        # self.memory_collected_flag = nn.Parameter(torch.zeros(self.num_labels).bool(), requires_grad=False)
-        # self.memory_n_no_updates = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)),
-        #                                         requires_grad=False)
-        # self.memory_n_updates = nn.Parameter(torch.zeros(sum(self.memory_size_per_label)),
-        #                                      requires_grad=False)
-        # self.memory_indices = nn.Parameter(torch.cat(
-        #     [torch.arange(self.memory_size_per_label[n])
-        #      for n in range(self.num_labels)]),
-        #     requires_grad=False
-        # )
-
         self.memory = torch.zeros(sum(self.memory_size_per_label), self.model_dim)
         self.memory_norms = torch.zeros(sum(self.memory_size_per_label))
         self.memory_mask = torch.zeros(sum(self.memory_size_per_label)).bool()
@@ -1419,9 +1403,9 @@ class BootstrapLabelMemoryStorage(nn.Module):
     def _update_exist_memory(self, candidates: Tensor, n_label: int):
 
         lower_bound, upper_bound = self.bounds[n_label]
-        memory_subset = self.memory[lower_bound:upper_bound]
-        memory_norms_subset = self.memory_norms[lower_bound:upper_bound].unsqueeze(1)
-        memory_mask_subset = self.memory_mask[lower_bound:upper_bound]
+        memory_subset = self.memory[lower_bound:upper_bound].to(candidates.device)
+        memory_norms_subset = self.memory_norms[lower_bound:upper_bound].unsqueeze(1).to(candidates.device)
+        memory_mask_subset = self.memory_mask[lower_bound:upper_bound].to(candidates.device)
 
         candidates_norms = candidates.norm(dim=1).unsqueeze(1)
 
@@ -1452,15 +1436,15 @@ class BootstrapLabelMemoryStorage(nn.Module):
 
         updated_memory = momentum * candidates + (1. - momentum) * memory_subset[insert_indices]
 
-        insert_indices += lower_bound
+        insert_indices = insert_indices + lower_bound
 
-        self._set_memory(memory=updated_memory, insert_indices=insert_indices)
+        self._set_memory(memory=updated_memory.cpu(), insert_indices=insert_indices.cpu())
 
     def _update_memory(self, candidates, n_label):
 
         lower_bound, upper_bound = self.bounds[n_label]
-        memory_indices_subset = self.memory_indices[lower_bound:upper_bound]
-        memory_n_no_updates = self.memory_n_no_updates[lower_bound:upper_bound]
+        memory_indices_subset = self.memory_indices[lower_bound:upper_bound].to(candidates.device)
+        memory_n_no_updates = self.memory_n_no_updates[lower_bound:upper_bound].to(candidates.device)
 
         no_update_indices = memory_indices_subset[memory_n_no_updates >= self.max_no_updates] + lower_bound
 
@@ -1476,10 +1460,10 @@ class BootstrapLabelMemoryStorage(nn.Module):
                 # порядок важен, потому что эмбеддинги кандидатов могут быть похожими
                 # потому что есть пересечения
                 self._update_exist_memory(candidates=update_candidates, n_label=n_label)
-                self._set_memory(memory=replace_candidates, insert_indices=no_update_indices)
+                self._set_memory(memory=replace_candidates.cpu(), insert_indices=no_update_indices.cpu())
 
             else:
-                self._set_memory(memory=candidates, insert_indices=no_update_indices)
+                self._set_memory(memory=candidates.cpu(), insert_indices=no_update_indices.cpu())
 
         else:
             self._update_exist_memory(candidates=candidates, n_label=n_label)
@@ -1495,14 +1479,14 @@ class BootstrapLabelMemoryStorage(nn.Module):
             if len(candidates) > self.max_candidates:
                 candidates = random.sample(candidates, self.max_candidates)
 
-            candidates = torch.stack([candidate.mean(dim=0) for candidate in candidates])
+            candidates = torch.stack([candidate.mean(dim=0) for candidate in candidates]).to(embeddings.device)
 
             if self.memory_collected_flag[n_label]:
                 # отправить на обновление центроид
                 self._update_memory(candidates=candidates, n_label=n_label)
             else:
-                memory_indices_subset = self.memory_indices[lower_bound:upper_bound]
-                memory_mask_subset = self.memory_mask[lower_bound:upper_bound]
+                memory_indices_subset = self.memory_indices[lower_bound:upper_bound].to(embeddings.device)
+                memory_mask_subset = self.memory_mask[lower_bound:upper_bound].to(embeddings.device)
                 insert_indices = memory_indices_subset[memory_mask_subset == False][:candidates.size(0)]
                 if insert_indices.size(0) == 0:
                     self.memory_collected_flag[n_label] = True
@@ -1512,7 +1496,7 @@ class BootstrapLabelMemoryStorage(nn.Module):
                     # добавление новых центроид
                     candidates = candidates[:insert_indices.size(0)]
                     insert_indices += lower_bound
-                    self._set_memory(memory=candidates, insert_indices=insert_indices)
+                    self._set_memory(memory=candidates.cpu(), insert_indices=insert_indices.cpu())
 
         self.memory_n_no_updates += 1
 
@@ -1576,10 +1560,10 @@ class MultiHeadMemoryAttention(BaseAttention):
                                            length_scaling=length_scaling,
                                            scaling_square_root=scaling_square_root)
 
-        self.encoder = MLP(sizes=encoder_sizes,
-                           norm_type=self.norm_type,
-                           dropout=encoder_dropout,
-                           activation=self.activation)
+        self.encoder = MultiLayerPerceptron(sizes=encoder_sizes,
+                                            norm_type=self.norm_type,
+                                            dropout=encoder_dropout,
+                                            activation=self.activation)
 
         self.query_projection = nn.Linear(in_features=self.model_dim, out_features=self.layer_dim)
         self.key_projection = self._get_head()
@@ -1615,7 +1599,7 @@ class MultiHeadMemoryAttention(BaseAttention):
         else:
             embeddings = None
 
-        memory = self.storage()
+        memory = self.storage().to(x.device)
 
         batch_size, sequence_length, _ = x.size()
         n_memory = memory.size(0)

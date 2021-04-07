@@ -1,8 +1,9 @@
+from typing import Optional
+
 import torch
 from torch import nn
 
-from src import io
-from typing import Optional
+from label_augmented import io
 
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):

@@ -1,0 +1,7 @@
+# @package _group_
+class_path: label_augmented.models.GlobalPooling
+parameters:
+  pooling_type: ${pooling.pooling_type}
+  length_scaling: ${pooling.length_scaling}
+  scaling_square_root: ${pooling.scaling_square_root}
+  pad_index: ${general.pad_index}
