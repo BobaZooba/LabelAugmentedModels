@@ -13,7 +13,6 @@ parameters:
     - ${general.model_dim}
     - ${general.model_dim}
     - ${general.model_dim}
-  pretrained_model_name: ${general.pretrained_model_name}
   memory_layer_each_n: 3
   shared_memory: False
   shared_encoder: False
