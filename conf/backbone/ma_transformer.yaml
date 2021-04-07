@@ -4,7 +4,7 @@ parameters:
   model_dim: ${general.model_dim}
   num_labels: ${general.num_classes}
   embedding_dim: 384
-  vocab_size: $(general.vocab_size)
+  vocab_size: ${general.vocab_size}
   num_heads: 12
   feed_forward_dim: 1536
   num_layers: ${general.num_layers}
@@ -18,7 +18,7 @@ parameters:
   shared_memory: False
   shared_encoder: False
   bootstrap_storage: True
-  n_positions: $(general.max_length)
+  n_positions: ${general.max_length}
   n_segments: 0
   dropout: 0.1
   norm_type: rms

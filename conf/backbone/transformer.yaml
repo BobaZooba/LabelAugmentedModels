@@ -1,13 +1,13 @@
 # @package _group_
 class_path: label_augmented.models.Transformer
 parameters:
-  model_dim: $(general.model_dim)
+  model_dim: ${general.model_dim}
   embedding_dim: 384
-  vocab_size: $(general.vocab_size)
+  vocab_size: ${general.vocab_size}
   num_heads: 12
   feed_forward_dim: 1536
-  num_layers: $(general.num_layers)
-  n_positions: $(general.max_length)
+  num_layers: ${general.num_layers}
+  n_positions: ${general.max_length}
   n_segments: 0
   dropout: 0.1
   norm_type: rms
@@ -20,4 +20,4 @@ parameters:
   max_relative_position: 10
   use_bias_positions: True
   use_fusion_gate: False
-  pad_index: $(general.pad_index)
+  pad_index: ${general.pad_index}

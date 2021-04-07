@@ -13,10 +13,7 @@ import os
 @hydra.main(config_path='../conf', config_name='config')
 def main(config: DictConfig):
 
-    # Set environment variables
     os.environ['HYDRA_FULL_ERROR'] = '1'
-
-    print(OmegaConf.to_yaml(config))
 
     logging.basicConfig(
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -28,6 +25,7 @@ def main(config: DictConfig):
     logger = logging.getLogger(os.path.basename(__file__))
 
     pl.seed_everything(seed=config.general.seed)
+    logger.info(OmegaConf.to_yaml(config))
 
     datamodule = utils.load_object(config=config.datamodule)
     logger.info('Data Module loaded')

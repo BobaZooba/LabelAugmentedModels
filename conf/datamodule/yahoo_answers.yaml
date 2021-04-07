@@ -4,4 +4,4 @@ parameters:
   data_path: ${general.data_path}
   batch_size: 128
   pretrained_model_name: ${general.pretrained_model_name}
-  max_length: $(general.max_length)
+  max_length: ${general.max_length}
