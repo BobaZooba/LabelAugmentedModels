@@ -1,8 +1,18 @@
 import importlib
-from typing import Any
+from typing import Any, Dict, List, Union
+import torch
 
 from omegaconf import DictConfig
-from torch import nn
+from torch import nn, Tensor
+
+Batch = Dict[str, Tensor]
+
+
+def prediction(batch: Batch, distribution: bool = False) -> Union[List[int], Tensor]:
+    if distribution:
+        return torch.softmax(batch['logits'], dim=-1)
+    else:
+        batch['logits'].argmax(dim=-1).detach().cpu().tolist()
 
 
 def import_object(module_path: str, object_name: str) -> Any:

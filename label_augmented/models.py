@@ -7,7 +7,8 @@ import torch
 from torch import nn
 from transformers import AutoModel
 
-from label_augmented import io, layers
+from label_augmented import layers
+from label_augmented.utils import Batch
 
 ENCODER_TYPES: List[str] = [
     'encoder',
@@ -74,18 +75,16 @@ class Transformer(nn.Module):
                 self.layers[n_layer].self_attention.relative_positions \
                     = self.layers[0].self_attention.relative_positions
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        sample.set_pad_mask(pad_index=self.pad_index)
-
-        x = self.embedding_layer(sequence_indices=sample.input.sequence_indices)
+        x = self.embedding_layer(sequence_indices=batch['sequence_indices'])
 
         for layer in self.layers:
-            x = layer(x, pad_mask=sample.input.pad_mask)[-1]
+            x = layer(x, pad_mask=batch['pad_mask'])[-1]
 
-        sample.output.encodings.backbone = x
+        batch['backbone'] = x
 
-        return sample
+        return batch
 
 
 class Bert(nn.Module):
@@ -113,15 +112,13 @@ class Bert(nn.Module):
 
         raise ValueError('Not specified encoder_type of model')
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        sample.set_pad_mask(pad_index=self.pad_index)
+        output = self.model(input_ids=batch['sequence_indices'], attention_mask=batch['pad_mask'])
 
-        output = self.model(input_ids=sample.input.sequence_indices, attention_mask=sample.input.pad_mask)
+        batch['backbone'] = output.last_hidden_state
 
-        sample.output.encodings.backbone = output.last_hidden_state
-
-        return sample
+        return batch
 
 
 class BaseMemoryAugmentedBackbone(ABC, nn.Module):
@@ -160,29 +157,27 @@ class BaseMemoryAugmentedBackbone(ABC, nn.Module):
             if hasattr(layer, 'updating'):
                 layer.updating(mode)
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        sample.set_pad_mask(pad_index=self.pad_index)
-
-        x = self.embedding_layer(sample.input.sequence_indices)
+        x = self.embedding_layer(batch['sequence_indices'])
 
         all_embeddings = tuple()
 
         for n_layer, layer in enumerate(self.layers):
             n_layer += 1
             if n_layer % self.memory_layer_each_n == 0:
-                x, embeddings = layer(x, labels=sample.target, pad_mask=sample.input.pad_mask)
+                x, embeddings = layer(x, labels=batch['target'], pad_mask=batch['pad_mask'])
                 all_embeddings = all_embeddings + (embeddings,)
             else:
-                x = layer(x, sample.input.pad_mask)[-1]
+                x = layer(x, batch['pad_mask'])[-1]
 
         if all_embeddings[0] is not None:
             all_embeddings = torch.stack(all_embeddings)
 
-        sample.output.encodings.backbone = x
-        sample.output.embeddings = all_embeddings
+        batch['backbone'] = x
+        batch['embeddings'] = all_embeddings
 
-        return sample
+        return batch
 
 
 class MemoryAugmentedTransformer(BaseMemoryAugmentedBackbone):
@@ -470,12 +465,11 @@ class GlobalPooling(nn.Module):
                                                   length_scaling=length_scaling,
                                                   scaling_square_root=scaling_square_root)
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        sample.output.encodings.aggregation = self.pooling(sample.output.encodings.backbone,
-                                                           sample.input.pad_mask)
+        batch['aggregation'] = self.pooling(batch['backbone'], batch['pad_mask'])
 
-        return sample
+        return batch
 
 
 class AttentionAggregation(nn.Module):
@@ -502,14 +496,14 @@ class AttentionAggregation(nn.Module):
                                                          inner_dim=inner_dim,
                                                          dropout=dropout)
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        mean_pooled = self.pooling(sample.output.encodings.backbone, sample.input.pad_mask)
-        attention_pooled = self.attention_pooling(sample.output.encodings.backbone, sample.input.pad_mask).squeeze(dim=1)
+        mean_pooled = self.pooling(batch['backbone'], batch['pad_mask'])
+        attention_pooled = self.attention_pooling(batch['backbone'], batch['pad_mask']).squeeze(dim=1)
 
-        sample.output.encodings.aggregation = torch.cat((mean_pooled, attention_pooled), dim=-1)
+        batch['aggregation'] = torch.cat((mean_pooled, attention_pooled), dim=-1)
 
-        return sample
+        return batch
 
 
 class ResidualAttentionAggregation(nn.Module):
@@ -547,18 +541,17 @@ class ResidualAttentionAggregation(nn.Module):
             self.output_projection = nn.Linear(in_features=self.attention_pooling.output_dim,
                                                out_features=model_dim)
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        mean_pooled = self.pooling(sample.output.encodings.backbone, sample.input.pad_mask)
+        mean_pooled = self.pooling(batch['backbone'], batch['pad_mask'])
 
-        attention_pooled = self.attention_pooling(self.normalization_layer(sample.output.encodings.backbone),
-                                                  sample.input.pad_mask)
+        attention_pooled = self.attention_pooling(self.normalization_layer(batch['backbone']), batch['pad_mask'])
 
         attention_pooled = self.output_projection(attention_pooled.squeeze(dim=1))
 
-        sample.output.encodings.aggregation = self.dropout(attention_pooled) + mean_pooled
+        batch['aggregation'] = self.dropout(attention_pooled) + mean_pooled
 
-        return sample
+        return batch
 
 
 class MultiLayerPerceptron(nn.Module):
@@ -579,8 +572,8 @@ class MultiLayerPerceptron(nn.Module):
             residual_as_possible=residual_as_possible
         )
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        sample.output.encodings.head = self.encoder(sample.output.encodings.aggregation)
+        batch['logits'] = self.encoder(batch['aggregation'])
 
-        return sample
+        return batch

@@ -1,9 +1,9 @@
 from typing import Optional
 
 import torch
-from torch import nn
+from torch import nn, Tensor
 
-from label_augmented import io
+from label_augmented.utils import Batch
 
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
@@ -20,10 +20,10 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
                          reduce=reduce,
                          reduction=reduction)
 
-    def forward(self, sample: io.ModelIO) -> io.ModelIO:
+    def forward(self, batch: Batch) -> Batch:
 
-        loss = super().forward(sample.logits, sample.target)
+        loss = super().forward(batch['logits'], batch['target'])
 
-        sample.loss.value = loss
+        batch['loss'] = loss
 
-        return sample
+        return batch
