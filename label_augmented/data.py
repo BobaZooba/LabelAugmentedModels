@@ -68,7 +68,7 @@ class Preparer:
         output_batch = {
             'sequence_indices': sequence_indices,
             'pad_mask': (sequence_indices != self.pad_index).long(),
-            'targets':  torch.Tensor(targets).long()
+            'target':  torch.Tensor(targets).long()
         }
 
         return output_batch
