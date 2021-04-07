@@ -95,6 +95,8 @@ class LightningClassifier(pl.LightningModule):
                  on_step=False,
                  on_epoch=True)
 
+        del outputs
+
     def training_epoch_end(self, outputs: List[Batch]) -> None:
         self.epoch_end(outputs=outputs, stage='train')
 
