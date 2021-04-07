@@ -1,11 +1,20 @@
 import importlib
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, Optional
 import torch
 
 from omegaconf import DictConfig
 from torch import nn, Tensor
 
 Batch = Dict[str, Tensor]
+
+
+def batch_to_cpu(batch: Batch, except_list: Optional[List[str]] = None) -> Batch:
+    if except_list is None:
+        except_list = list()
+    for key, value in batch.items():
+        if key not in except_list:
+            batch[key] = value.cpu()
+    return batch
 
 
 def prediction(batch: Batch, distribution: bool = False) -> Union[List[int], Tensor]:

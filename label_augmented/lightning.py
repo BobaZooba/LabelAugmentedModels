@@ -1,4 +1,4 @@
-from typing import List, Any, Dict, Union
+from typing import List, Any, Dict, Union, Tuple
 
 import numpy as np
 import pytorch_lightning as pl
@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 from sklearn.metrics import f1_score
 from torch import nn, Tensor
 
-from label_augmented.utils import import_object_from_path, prediction, Batch
+from label_augmented.utils import import_object_from_path, prediction, batch_to_cpu, Batch
 
 
 class LightningClassifier(pl.LightningModule):
@@ -16,7 +16,7 @@ class LightningClassifier(pl.LightningModule):
                  model: nn.Module,
                  criterion: nn.Module,
                  optimizer_config: DictConfig,
-                 f1_type: str ='macro'):
+                 f1_type: str = 'macro'):
         super().__init__()
 
         self.model = model
@@ -38,6 +38,7 @@ class LightningClassifier(pl.LightningModule):
     def step(self, batch: Batch) -> Batch:
         batch = self.forward(batch)
         batch = self.criterion(batch)
+        batch = batch_to_cpu(batch, except_list=['loss'])
         return batch
 
     def calculate_f1_score(self,

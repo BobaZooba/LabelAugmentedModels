@@ -1,6 +1,6 @@
 defaults:
   - datamodule: yahoo_answers
-  - backbone: ma_bert
+  - backbone: bert
   - aggregation: residual_attention
   - head: multi_layer_perceptron
   - optimizer: adamw

@@ -22,8 +22,6 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
 
     def forward(self, batch: Batch) -> Batch:
 
-        loss = super().forward(batch['logits'], batch['target'])
-
-        batch['loss'] = loss
+        batch['loss'] = super().forward(batch['logits'], batch['target'])
 
         return batch
