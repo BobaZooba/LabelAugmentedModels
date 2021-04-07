@@ -29,8 +29,8 @@ train:
   accumulate_grad_batches: 1
   precision: 32
   gradient_clip_val: 3.0
-#  gpus:
-#    - ${general.n_gpu}
+  gpus:
+    - ${general.n_gpu}
   num_sanity_val_steps: 0
   limit_train_batches: 1.
   limit_val_batches: 1.
