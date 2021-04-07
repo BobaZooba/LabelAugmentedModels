@@ -28,7 +28,7 @@ def main(config: DictConfig):
     logger.info(OmegaConf.to_yaml(config))
 
     datamodule = utils.load_object(config=config.datamodule)
-    logger.info('Data Module loaded')
+    logger.info('Data Module Loaded')
 
     backbone = utils.load_object(config.backbone)
     logger.info('Backbone Loaded')
