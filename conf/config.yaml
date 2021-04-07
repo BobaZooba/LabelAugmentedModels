@@ -10,7 +10,7 @@ defaults:
 
 general:
   project_name: LabelAugmented
-  # current dir is ./outputs/
+  # current dir is ./outputs/*date*/
   data_path: ../../data/
   seed: 42
   n_gpu: 0
