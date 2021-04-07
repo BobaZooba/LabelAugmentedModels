@@ -73,7 +73,13 @@ class LightningClassifier(pl.LightningModule):
 
         batch = self.step(batch)
 
-        return batch
+        batch_output = {
+            'loss': batch['loss'],
+            'predictions': io.prediction(batch),
+            'targets': io.raw_target(batch)
+        }
+
+        return batch_output
 
     def epoch_end(self, outputs: List[io.Batch], stage: str = 'train') -> None:
 
