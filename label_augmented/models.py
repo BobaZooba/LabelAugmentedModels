@@ -7,8 +7,7 @@ import torch
 from torch import nn
 from transformers import AutoModel
 
-from label_augmented import layers
-from label_augmented.utils import Batch
+from label_augmented import layers, io
 
 ENCODER_TYPES: List[str] = [
     'encoder',
@@ -75,7 +74,7 @@ class Transformer(nn.Module):
                 self.layers[n_layer].self_attention.relative_positions \
                     = self.layers[0].self_attention.relative_positions
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
 
         x = self.embedding_layer(sequence_indices=batch['sequence_indices'])
 
@@ -112,7 +111,7 @@ class Bert(nn.Module):
 
         raise ValueError('Not specified encoder_type of model')
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
 
         output = self.model(input_ids=batch['sequence_indices'], attention_mask=batch['pad_mask'])
 
@@ -157,7 +156,7 @@ class BaseMemoryAugmentedBackbone(ABC, nn.Module):
             if hasattr(layer, 'updating'):
                 layer.updating(mode)
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
 
         x = self.embedding_layer(batch['sequence_indices'])
 
@@ -465,7 +464,7 @@ class GlobalPooling(nn.Module):
                                                   length_scaling=length_scaling,
                                                   scaling_square_root=scaling_square_root)
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
 
         batch['aggregation'] = self.pooling(batch['backbone'], batch['pad_mask'])
 
@@ -496,7 +495,7 @@ class AttentionAggregation(nn.Module):
                                                          inner_dim=inner_dim,
                                                          dropout=dropout)
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
 
         mean_pooled = self.pooling(batch['backbone'], batch['pad_mask'])
         attention_pooled = self.attention_pooling(batch['backbone'], batch['pad_mask']).squeeze(dim=1)
@@ -541,7 +540,7 @@ class ResidualAttentionAggregation(nn.Module):
             self.output_projection = nn.Linear(in_features=self.attention_pooling.output_dim,
                                                out_features=model_dim)
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
 
         mean_pooled = self.pooling(batch['backbone'], batch['pad_mask'])
 
@@ -572,7 +571,7 @@ class MultiLayerPerceptron(nn.Module):
             residual_as_possible=residual_as_possible
         )
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
 
         batch['logits'] = self.encoder(batch['aggregation'])
 

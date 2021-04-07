@@ -1,13 +1,12 @@
-from typing import List, Any, Dict, Union, Tuple
+from typing import List
 
 import numpy as np
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig
 from sklearn.metrics import f1_score
-from torch import nn, Tensor
+from torch import nn
 
-from label_augmented.utils import import_object_from_path, prediction, batch_to_device, Batch
+from label_augmented import io, utils
 
 
 class LightningClassifier(pl.LightningModule):
@@ -27,18 +26,18 @@ class LightningClassifier(pl.LightningModule):
 
     def configure_optimizers(self):
 
-        optimizer_object = import_object_from_path(object_path=self.optimizer_config.class_path)
+        optimizer_object = utils.import_object_from_path(object_path=self.optimizer_config.class_path)
         optimizer = optimizer_object(self.model.parameters(), **self.optimizer_config.parameters)
 
         return optimizer
 
-    def forward(self, batch: Batch) -> Batch:
+    def forward(self, batch: io.Batch) -> io.Batch:
         return self.model(batch)
 
-    def step(self, batch: Batch) -> Batch:
+    def step(self, batch: io.Batch) -> io.Batch:
         batch = self.forward(batch)
         batch = self.criterion(batch)
-        batch = batch_to_device(batch, except_list=['loss'])
+        batch = io.batch_to_device(batch, except_list=['loss'])
         return batch
 
     def calculate_f1_score(self,
@@ -46,34 +45,37 @@ class LightningClassifier(pl.LightningModule):
                            targets: List[int]) -> float:
         return f1_score(y_true=targets, y_pred=predictions, average=self.f1_type)
 
-    def calculate_f1_score_from_batch(self, batch: Batch) -> float:
-        return self.calculate_f1_score(predictions=prediction(batch=batch),
-                                       targets=batch['target'].detach().cpu().tolist())
-
     def training_step(self,
-                      batch: Batch,
-                      batch_idx: int) -> Batch:
+                      batch: io.Batch,
+                      batch_idx: int) -> io.Batch:
 
         batch = self.step(batch)
+
+        batch_output = {
+            'loss': batch['loss'],
+            'predictions': io.prediction(batch),
+            'targets': io.raw_target(batch)
+        }
 
         self.log(name='train_loss', value=batch['loss'].item(),
                  prog_bar=False, on_step=True, on_epoch=False)
 
         self.log(name=f'train_batch_f1_{self.f1_type}',
-                 value=self.calculate_f1_score_from_batch(batch=batch),
+                 value=self.calculate_f1_score(predictions=batch_output['predictions'],
+                                               targets=batch_output['targets']),
                  prog_bar=False, on_step=True, on_epoch=False)
 
-        return batch
+        return batch_output
 
     def validation_step(self,
-                        batch: Batch,
-                        batch_idx: int) -> Batch:
+                        batch: io.Batch,
+                        batch_idx: int) -> io.Batch:
 
         batch = self.step(batch)
 
         return batch
 
-    def epoch_end(self, outputs: List[Batch], stage: str = 'train') -> None:
+    def epoch_end(self, outputs: List[io.Batch], stage: str = 'train') -> None:
 
         losses: List[float] = list()
         predictions: List[int] = list()
@@ -81,8 +83,8 @@ class LightningClassifier(pl.LightningModule):
 
         for batch in outputs:
             losses.append(batch['loss'].item())
-            predictions.extend(prediction(batch=batch))
-            targets.extend(batch['target'].detach().cpu().tolist())
+            predictions.extend(batch['predictions'])
+            targets.extend(batch['targets'])
 
         self.log(name=f'{stage}_epoch_loss',
                  value=np.mean(losses),
@@ -96,10 +98,8 @@ class LightningClassifier(pl.LightningModule):
                  on_step=False,
                  on_epoch=True)
 
-        del outputs
-
-    def training_epoch_end(self, outputs: List[Batch]) -> None:
+    def training_epoch_end(self, outputs: List[io.Batch]) -> None:
         self.epoch_end(outputs=outputs, stage='train')
 
-    def validation_epoch_end(self, outputs: List[Batch]) -> None:
+    def validation_epoch_end(self, outputs: List[io.Batch]) -> None:
         self.epoch_end(outputs=outputs, stage='valid')

@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Union, List, Sequence, Tuple, Dict
+from typing import Optional, Union, List, Dict
 
 import pandas as pd
 import pytorch_lightning as pl
@@ -8,7 +8,7 @@ from torch import Tensor
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer
 
-from label_augmented.utils import Batch
+from label_augmented import io
 
 
 class YahooAnswersDataset(Dataset):
@@ -56,25 +56,24 @@ class Preparer:
 
         return tokenized
 
-    def collate(self, batch: Sequence[Dict[str, Union[str, int]]]) -> Batch:
+    def collate(self, batch: Dict[str, Union[str, int]]) -> io.Batch:
         texts, targets = list(), list()
 
         for sample in batch:
             texts.append(sample['text'])
             targets.append(sample['target'])
 
-        tokenized_texts = self(texts)
-        targets = torch.Tensor(targets).long()
+        sequence_indices = self(texts)
 
-        output = {
-            'sequence_indices': tokenized_texts,
-            'pad_mask': (tokenized_texts != self.pad_index).long(),
-            'target': targets
+        output_batch = {
+            'sequence_indices': sequence_indices,
+            'pad_mask': (sequence_indices != self.pad_index).long(),
+            'targets':  torch.Tensor(targets).long()
         }
 
-        return output
+        return output_batch
 
-    def decoding(self, batch: Batch):
+    def decoding(self, batch: io.Batch) -> List[str]:
         return self.tokenizer.batch_decode(sequences=batch['sequence_indices'].detach().cpu().tolist(),
                                            skip_special_tokens=True)
 
