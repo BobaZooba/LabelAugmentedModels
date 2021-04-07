@@ -1,13 +1,13 @@
-import hydra
-import torch
-import numpy as np
-from omegaconf import DictConfig, OmegaConf
-import pytorch_lightning as pl
-from label_augmented import utils, lightning
 import logging
-from pytorch_lightning.loggers import WandbLogger
-import sys
 import os
+import sys
+
+import hydra
+import pytorch_lightning as pl
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning.loggers import WandbLogger
+
+from label_augmented import utils, lightning
 
 
 @hydra.main(config_path='../conf', config_name='config')
