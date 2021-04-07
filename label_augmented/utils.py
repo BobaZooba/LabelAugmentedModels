@@ -12,7 +12,7 @@ def prediction(batch: Batch, distribution: bool = False) -> Union[List[int], Ten
     if distribution:
         return torch.softmax(batch['logits'], dim=-1)
     else:
-        batch['logits'].argmax(dim=-1).detach().cpu().tolist()
+        return batch['logits'].argmax(dim=-1).detach().cpu().tolist()
 
 
 def import_object(module_path: str, object_name: str) -> Any:
